@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"="width=device-width, initial-scale=1.0">
+<title>농기계 임대관리 시스템 v2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+/* ── 기존 스타일 유지 ── */
+:root{
+  --bg:#0f1117;
+  --surface:#1a1d27;
+  --card:#21253a;
+  --border:#2e3350;
+  --green:#22c55e;
+  --yellow:#f59e0b;
+  --red:#ef4444;
+  --blue:#3b82f6;
+  --text:#e2e8f0;
+  --muted:#64748b;
+  --accent:#6366f1;
+  --dim:#94a3b8;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Noto Sans KR',sans-serif;
+  min-height:100vh;
+  padding:0 0 40px
+}
+
+/* ── 헤더 ── */
+header{
+  padding:16px 20px;
+  border-bottom:1px solid var(--border);
+  background:#13162290;
+  backdrop-filter:blur(12px);
+  position:sticky;
+  top:0;
+  z-index:200;
+}
+header h1{
+  font-size:clamp(18px,4vw,24px);
+  font-weight:900;
+  color:#fff;
+  letter-spacing:-0.5px;
+}
+header h1 span{color:var(--accent)}
+.sub{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* ── 메뉴 탭 ── */
+.nav-tabs{
+  display:flex;
+  gap:8px;
+  margin-top:12px;
+  overflow-x:auto;
+  scrollbar-width:none;
+}
+.nav-tabs::-webkit-scrollbar{display:none}
+.ntab{
+  padding:8px 20px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--dim);
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .2s;
+  white-space:nowrap;
+}
+.ntab:hover{border-color:var(--accent);color:#fff}
+.ntab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ── 컨텐츠 영역 ── */
+.container{
+  max-width:1400px;
+  margin:0 auto;
+  padding:20px;
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:16px;
+}
+
+.card-title{
+  font-size:14px;
+  font-weight:700;
+  color:var(--text);
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.card-title::before{
+  content:'';
+  display:inline-block;
+  width:4px;
+  height:16px;
+  background:var(--accent);
+  border-radius:2px;
+}
+
+/* ── 검색 바 ── */
+.search-bar{
+  display:flex;
+  gap:8px;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+}
+.search-input{
+  flex:1;
+  min-width:200px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:14px;
+  padding:10px 14px;
+  outline:none;
+  transition:border-color .2s;
+}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+
+.btn{
+  padding:10px 20px;
+  border-radius:8px;
+  border:none;
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  transition:all .2s;
+}
+.btn-primary{
+  background:var(--accent);
+  color:#fff;
+}
+.btn-primary:hover{
+  background:#5558e8;
+  transform:translateY(-1px);
+}
+.btn-secondary{
+  background:var(--surface);
+  color:var(--text);
+  border:1px solid var(--border);
+}
+.btn-secondary:hover{
+  border-color:var(--accent);
+}
+
+/* ── 테이블 ── */
+.table-container{
+  overflow-x:auto;
+  border-radius:8px;
+  border:1px solid var(--border);
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+thead{
+  background:var(--surface);
+  position:sticky;
+  top:0;
+}
+th{
+  padding:12px 16px;
+  text-align:left;
+  font-weight:700;
+  color:var(--muted);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+td{
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  color:var(--text);
+}
+tbody tr{
+  transition:background .15s;
+  cursor:pointer;
+}
+tbody tr:hover{
+  background:rgba(99,102,241,.07);
+}
+
+/* ── 상태 뱃지 ── */
+.badge{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:12px;
+  font-size:11px;
+  font-weight:700;
+  font-family:'JetBrains Mono',monospace;
+}
+.badge-active{
+  background:rgba(34,197,94,.15);
+  color:var(--green);
+}
+.badge-inactive{
+  background:rgba(100,116,139,.15);
+  color:var(--muted);
+}
+
+/* ── 빈 상태 ── */
+.empty-state{
+  text-align:center;
+  padding:60px 20px;
+  color:var(--muted);
+}
+.empty-state svg{
+  width:80px;
+  height:80px;
+  margin-bottom:16px;
+  opacity:.3;
+}
+.empty-state h3{
+  font-size:16px;
+  margin-bottom:8px;
+}
+.empty-state p{
+  font-size:13px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>농기계 임대관리 <span>v2</span></h1>
+  <div class="sub">파주시 농업기계임대사업소 통합관리시스템</div>
+  <div class="nav-tabs">
+    <button class="ntab active" data-tab="member">회원관리</button>
+    <button class="ntab" data-tab="equipment">장비관리</button>
+    <button class="ntab" data-tab="rental">임대현황</button>
+    <button class="ntab" data-tab="stats">통계/보고</button>
+  </div>
+</header>
+
+<div class="container">
+  <!-- 회원관리 섹션 -->
+  <div id="tab-member" class="tab-content">
+    <div class="card">
+      <div class="card-title">회원 검색</div>
+      <div class="search-bar">
+        <input type="text" class="search-input" placeholder="성명, 연락처, 주소로 검색" id="searchInput">
+        <button class="btn btn-secondary" onclick="searchMembers()">검색</button>
+        <button class="btn btn-primary" onclick="openAddModal()">+ 회원 등록</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">회원 목록</div>
+      <div class="table-container">
+        <table id="memberTable">
+          <thead>
+            <tr>
+              <th>회원번호</th>
+              <th>성명</th>
+              <th>생년</th>
+              <th>읍면동</th>
+              <th>연락처</th>
+              <th>특이사항</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="memberTableBody">
+            <!-- 데이터가 여기 표시됩니다 -->
+          </tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        <h3>등록된 회원이 없습니다</h3>
+        <p>회원 등록 버튼을 눌러 첫 회원을 등록해보세요</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 다른 탭들 (준비중) -->
+  <div id="tab-equipment" class="tab-content" style="display:none">
+    <div class="card">
+      <div class="card-title">장비관리</div>
+      <p style="color:var(--muted)">준비 중입니다...</p>
+    </div>
+  </div>
+
+  <div id="tab-rental" class="tab-content" style="display:none">
+    <div class="card">
+      <div class="card-title">임대현황</div>
+      <p style="color:var(--muted)">준비 중입니다...</p>
+    </div>
+  </div>
+
+  <div id="tab-stats" class="tab-content" style="display:none">
+    <div class="card">
+      <div class="card-title">통계/보고</div>
+      <p style="color:var(--muted)">준비 중입니다...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Supabase 설정 (나중에 추가)
+const SUPABASE_URL = 'https://wddtagovsimavguvlrzr.supabase.co';
+const SUPABASE_KEY = '여기에_키_입력'; // 나중에 설정
+
+// 탭 전환
+document.querySelectorAll('.ntab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const targetTab = tab.dataset.tab;
+    
+    // 탭 활성화
+    document.querySelectorAll('.ntab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    
+    // 컨텐츠 표시
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    document.getElementById(`tab-${targetTab}`).style.display = 'block';
+  });
+});
+
+// 더미 데이터
+let members = [
+  {
+    member_code: 'M2024001',
+    name: '김철수',
+    birth_year: '1965',
+    district: '문산읍',
+    phone: '010-1234-5678',
+    address: '경기도 파주시 문산읍',
+    special_notes: '',
+    is_active: true
+  },
+  {
+    member_code: 'M2024002',
+    name: '이영희',
+    birth_year: '1972',
+    district: '조리읍',
+    phone: '010-2345-6789',
+    address: '경기도 파주시 조리읍',
+    special_notes: '대형기계 선호',
+    is_active: true
+  },
+  {
+    member_code: 'M2024003',
+    name: '김철수',
+    birth_year: '1980',
+    district: '광탄면',
+    phone: '010-3456-7890',
+    address: '경기도 파주시 광탄면',
+    special_notes: '',
+    is_active: true
+  }
+];
+
+// 테이블 렌더링
+function renderMembers(data = members) {
+  const tbody = document.getElementById('memberTableBody');
+  const emptyState = document.getElementById('emptyState');
+  
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    emptyState.style.display = 'block';
+    return;
+  }
+  
+  emptyState.style.display = 'none';
+  tbody.innerHTML = data.map(m => `
+    <tr onclick="viewMemberDetail('${m.member_code}')">
+      <td><span class="badge badge-active">${m.member_code}</span></td>
+      <td><strong>${m.name}</strong></td>
+      <td>${m.birth_year}</td>
+      <td>${m.district}</td>
+      <td>${m.phone}</td>
+      <td style="color:${m.special_notes ? 'var(--yellow)' : 'var(--muted)'}">${m.special_notes || '-'}</td>
+      <td><span class="badge ${m.is_active ? 'badge-active' : 'badge-inactive'}">${m.is_active ? '활성' : '비활성'}</span></td>
+    </tr>
+  `).join('');
+}
+
+// 회원 검색
+function searchMembers() {
+  const keyword = document.getElementById('searchInput').value.toLowerCase();
+  if (!keyword) {
+    renderMembers();
+    return;
+  }
+  
+  const filtered = members.filter(m => 
+    m.name.toLowerCase().includes(keyword) ||
+    m.phone.includes(keyword) ||
+    m.address.toLowerCase().includes(keyword) ||
+    m.district.toLowerCase().includes(keyword)
+  );
+  
+  renderMembers(filtered);
+}
+
+// 엔터키 검색
+document.getElementById('searchInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') searchMembers();
+});
+
+// 회원 상세 (임시)
+function viewMemberDetail(code) {
+  alert(`회원 상세: ${code}\n(모달 기능 준비 중)`);
+}
+
+// 회원 등록 (임시)
+function openAddModal() {
+  alert('회원 등록 모달\n(다음 단계에서 구현)');
+}
+
+// 초기 렌더링
+renderMembers();
+</script>
+
+</body>
+</html>
