@@ -587,6 +587,10 @@ select:focus{border-color:var(--accent)}
           <div class="avail-val" id="availVal">–</div>
         </div>
       </div>
+      <div class="card" id="safetyCard">
+        <div class="card-title">🌤️ 출고 전 안전 체크리스트</div>
+        <div id="safetyChecklistBody" style="font-size:12px;color:var(--dim);line-height:1.8">날씨 정보를 불러오는 중…</div>
+      </div>
     </div>
     <div class="col-right" style="display:flex;flex-direction:column;gap:0">
       <div id="inlineInputPanel" style="background:var(--card);border-bottom:2px solid var(--accent);padding:10px 16px">
@@ -601,6 +605,9 @@ select:focus{border-color:var(--accent)}
           </div>
           <div id="inputRow" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
             <input 입력="text" id="personNameInp" class="person-inp" placeholder="성명" autocomplete="off" style="width:80px">
+            <select id="dongSelect" style="background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:12px;padding:6px 8px;outline:none;max-width:120px">
+              <option value="">경작지(선택)</option>
+            </select>
             <div class="days-ctrl">
               <button class="day-btn" onclick="setDays(1)" id="dayBtn1">1일</button>
               <button class="day-btn" onclick="setDays(2)" id="dayBtn2">2일</button>
@@ -718,6 +725,22 @@ const MACHINES=[
   {n:"휴립복토파종기",m:80},{n:"휴립피복기(1조/2조)",m:60},
 ];
 const MMAP={};MACHINES.forEach(m=>MMAP[m.n]=m.m);
+
+// ══════════════════════════════════
+// 기상청 API 연동 — 데이터 & 설정 (저장 없이 매번 실시간 조회)
+// ══════════════════════════════════
+const KMA_SERVICE_KEY = 'fa1dc4686eaa2f9073a1274c6bd23dd65421b4e68dd07357f0c83c6feaf94242';
+const KMA_BASE_URL = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst';
+const SITE_COORDS = { '본소': { nx: 56, ny: 131 }, '북부': { nx: 56, ny: 133 } };
+const PAJU_DONG_COORDS = [
+  { name: '문산읍', nx: 56, ny: 133 }, { name: '파주읍', nx: 57, ny: 132 },
+  { name: '법원읍', nx: 58, ny: 133 }, { name: '조리읍', nx: 57, ny: 130 },
+  { name: '월롱면', nx: 57, ny: 132 }, { name: '탄현면', nx: 55, ny: 132 },
+  { name: '광탄면', nx: 58, ny: 131 }, { name: '파평면', nx: 57, ny: 134 },
+  { name: '적성면', nx: 59, ny: 135 }, { name: '장단면', nx: 55, ny: 133 },
+  { name: '금촌동', nx: 56, ny: 131 }, { name: '교하동', nx: 56, ny: 131 },
+  { name: '운정동(1~4)', nx: 56, ny: 130 }, { name: '운정동(5~6)', nx: 55, ny: 130 },
+];
 
 const WDEF={
   '본소':[{id:'bs1',name:'임기제 1',type:'임기제'},{id:'bs2',name:'임기제 2',type:'임기제'},{id:'bs3',name:'기간제 1',type:'기간제'},{id:'bs4',name:'기간제 2',type:'기간제'}],
@@ -1454,7 +1477,9 @@ function renderAll(){
     + ' <button onclick="toggleHoliday(\'' + _dkCur + '\')" style="' + _holBtnStyle + '">' + (_isHolCur ? '휴무 해제' : '휴무 지정') + '</button>'
     + (!isToday(d) ? ' <button onclick="resetDates()" style="margin-left:6px;padding:2px 8px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);border-radius:8px;color:var(--accent);font-size:10px;cursor:pointer">오늘로</button>' : '')
     + (() => { const isRainy = getRainy().includes(_dkCur); return ' <button onclick="toggleRainy(\'' + _dkCur + '\')" style="margin-left:4px;padding:2px 8px;background:' + (isRainy?'rgba(96,165,250,.2)':'transparent') + ';border:1px solid ' + (isRainy?'#60a5fa':'#2e3350') + ';border-radius:8px;color:' + (isRainy?'#60a5fa':'#64748b') + ';font-size:10px;cursor:pointer">' + (isRainy?'🌧️ 우천 해제':'🌧️ 우천') + '</button>'; })();
-  renderWorkers();renderGauge();renderSelList();renderTriDayPanel();}
+  renderWorkers();renderGauge();renderSelList();renderTriDayPanel();
+  renderSafetyChecklist();
+}
 
 
 
@@ -1923,7 +1948,7 @@ function updateHalfInfo() {
 }
 
 // ── 입력 추가 ──
-function addEntry() {
+async function addEntry() {
   if (!selEquip) return;
   const person = document.getElementById('personNameInp').value.trim();
   if (!person) {
@@ -1934,6 +1959,10 @@ function addEntry() {
   document.getElementById('personNameInp').style.borderColor = '';
 
   const dk = getDkeys()[curIdx];
+
+  const proceed = await checkWeatherBeforeEntry(dk);
+  if (!proceed) return;
+
   const startDate = dk;
   
   const site = inputSite || (curSite === '전체' ? '본소' : curSite);
@@ -2878,6 +2907,118 @@ async function loadChecks() {
     });
   } catch(e) { console.error('loadChecks error:', e); }
 }
+
+// ══════════════════════════════════
+// 기상청 API 연동 — 함수 (저장하지 않고 매번 실시간 조회)
+// ══════════════════════════════════
+function initDongSelect() {
+  const sel = document.getElementById('dongSelect');
+  if (!sel) return;
+  PAJU_DONG_COORDS.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.name; opt.textContent = d.name;
+    sel.appendChild(opt);
+  });
+}
+
+function getKmaBaseDateTime() {
+  const now = new Date();
+  const times = [2, 5, 8, 11, 14, 17, 20, 23];
+  let h = now.getHours(); let m = now.getMinutes();
+  let candidates = times.filter(t => t < h || (t === h && m >= 10));
+  let baseDate = new Date(now); let baseHour;
+  if (candidates.length === 0) { baseDate.setDate(baseDate.getDate() - 1); baseHour = 23; }
+  else { baseHour = candidates[candidates.length - 1]; }
+  const y = baseDate.getFullYear();
+  const mo = String(baseDate.getMonth() + 1).padStart(2, '0');
+  const da = String(baseDate.getDate()).padStart(2, '0');
+  return { base_date: `${y}${mo}${da}`, base_time: String(baseHour).padStart(2, '0') + '00' };
+}
+
+async function fetchWeatherForDate(nx, ny, targetDateStr) {
+  try {
+    const { base_date, base_time } = getKmaBaseDateTime();
+    const url = `${KMA_BASE_URL}?serviceKey=${encodeURIComponent(KMA_SERVICE_KEY)}`
+      + `&numOfRows=1000&pageNo=1&dataType=JSON`
+      + `&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const items = json?.response?.body?.items?.item || [];
+    const targetItems = items.filter(it => it.fcstDate === targetDateStr);
+    if (targetItems.length === 0) return null;
+    const pick = (cat) => {
+      const arr = targetItems.filter(it => it.category === cat);
+      if (arr.length === 0) return null;
+      const noon = arr.find(it => it.fcstTime === '1200');
+      return (noon || arr[0]).fcstValue;
+    };
+    return { pty: pick('PTY'), sky: pick('SKY'), tmx: pick('TMX'), tmn: pick('TMN'), wsd: pick('WSD') };
+  } catch (e) { console.error('날씨 조회 실패:', e); return null; }
+}
+
+function ptyLabel(pty) {
+  const map = { '0': '없음', '1': '비', '2': '비/눈', '3': '눈', '4': '소나기' };
+  return map[String(pty)] || '정보없음';
+}
+
+// ── 기능① 임대일정 조정 상담 ──
+async function checkWeatherBeforeEntry(startDateStr) {
+  const dongSel = document.getElementById('dongSelect');
+  const dongName = dongSel ? dongSel.value : '';
+  const coord = PAJU_DONG_COORDS.find(d => d.name === dongName) || SITE_COORDS['본소'];
+  const targetDateStr = startDateStr.replace(/-/g, '');
+  const w = await fetchWeatherForDate(coord.nx, coord.ny, targetDateStr);
+  if (!w) return true;
+  const isRainOrSnow = w.pty && w.pty !== '0';
+  const isWindy = w.wsd && parseFloat(w.wsd) >= 8;
+  if (isRainOrSnow || isWindy) {
+    const reasons = [];
+    if (isRainOrSnow) reasons.push(`강수(${ptyLabel(w.pty)})`);
+    if (isWindy) reasons.push(`강풍(풍속 ${w.wsd}m/s)`);
+    const msg = `⚠️ 임대일 예보: ${reasons.join(', ')}\n\n`
+      + `해당 지역(${dongName || '기본 지역'})의 작업 조건이 좋지 않을 수 있습니다.\n`
+      + `그래도 이 날짜로 임대를 진행하시겠습니까?\n`
+      + `(취소를 누르면 다른 날짜로 다시 선택해주세요)`;
+    return window.confirm(msg);
+  }
+  return true;
+}
+
+// ── 기능② 출고 전 안전 체크리스트 ──
+async function renderSafetyChecklist() {
+  const body = document.getElementById('safetyChecklistBody');
+  if (!body) return;
+  const site = (curSite === '전체') ? '본소' : curSite;
+  const coord = SITE_COORDS[site];
+  const dk = getDkeys()[curIdx];
+  const targetDateStr = dk.replace(/-/g, '');
+  body.textContent = '날씨 정보를 불러오는 중…';
+  const w = await fetchWeatherForDate(coord.nx, coord.ny, targetDateStr);
+  if (!w) { body.innerHTML = `<span style="color:var(--muted)">이 날짜는 예보 범위를 벗어나 날씨 정보를 제공할 수 없습니다.</span>`; return; }
+  const items = [];
+  const isRainOrSnow = w.pty && w.pty !== '0';
+  const isWindy = w.wsd && parseFloat(w.wsd) >= 8;
+  const isHot = w.tmx && parseFloat(w.tmx) >= 33;
+  const isCold = w.tmn && parseFloat(w.tmn) <= -5;
+  if (isRainOrSnow) {
+    items.push(`🌧️ ${ptyLabel(w.pty)} 예보 — 전기계열 장비(경운기·관리기 등) 방수 점검 필수`);
+    items.push(`🌧️ 우천 시 출고 대상 농기계 덮개(우비) 준비 확인`);
+  }
+  if (isWindy) items.push(`💨 강풍(풍속 ${w.wsd}m/s) 예보 — 적재·고정 상태 재확인, 대형 장비 상하차 시 주의`);
+  if (isHot) items.push(`🥵 폭염 예보(최고 ${w.tmx}℃) — 정비인력 온열질환 예방(수분 섭취, 휴식시간 확보) 안내`);
+  if (isCold) items.push(`🥶 한파 예보(최저 ${w.tmn}℃) — 배터리·유압라인 결빙 여부 사전 점검`);
+  if (items.length === 0) items.push(`✅ 특이 기상 조건 없음 — 정상 출고 절차 진행`);
+  body.innerHTML = `
+    <div style="margin-bottom:8px;padding:6px 8px;background:var(--surface);border-radius:6px;font-size:11px;color:var(--muted)">
+      ${site} 기준 · 하늘상태 ${w.sky==='1'?'맑음':w.sky==='3'?'구름많음':w.sky==='4'?'흐림':'-'} ·
+      기온 ${w.tmn||'-'}~${w.tmx||'-'}℃ · 풍속 ${w.wsd||'-'}m/s
+    </div>
+    <ul style="margin:0;padding-left:16px">${items.map(t => `<li style="margin-bottom:4px">${t}</li>`).join('')}</ul>
+  `;
+}
+
+initDongSelect();
 
 </script>
 </body>
